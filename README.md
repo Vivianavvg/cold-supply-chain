@@ -28,8 +28,13 @@ docs/             project spec and design notes
 
 ## Status
 
-Repo scaffold only — no models, generator, or CI logic implemented yet. See [`docs/project_spec.md`](docs/project_spec.md) §9 for the milestone sequence.
+Data generator implemented (`data_generator/`). dbt models, tests, and CI logic not yet implemented. See [`docs/project_spec.md`](docs/project_spec.md) §9 for the milestone sequence.
 
 ## Setup
 
-Not yet functional. Once the data generator and dbt models exist, this section will cover: Python env setup, BigQuery sandbox project creation, `profiles.yml` configuration, and how to run `dbt build` locally.
+```
+pip install -r requirements.txt
+python data_generator/generate.py --seed 42
+```
+
+See [`data_generator/README.md`](data_generator/README.md) for output details and tunable injection rates. BigQuery sandbox project creation, `profiles.yml` configuration, and `dbt build` instructions will be added once the dbt models exist.

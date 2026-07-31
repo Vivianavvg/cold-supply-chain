@@ -6,16 +6,18 @@ Guidance for Claude Code when working in this repository.
 
 Cold-Chain Visibility & Spoilage Risk Analytics — a dbt/BigQuery analytics engineering project. Full spec: `docs/project_spec.md`.
 
-Currently at the repo-scaffold stage: folder structure and config exist, but the data generator, dbt models, tests, and CI logic are not yet implemented. See `docs/project_spec.md` §9 for the milestone sequence, and each `models/<layer>/README.md` for what's planned in that layer.
+Data generator (M2) is implemented. dbt models, tests, and CI logic are not yet implemented. See `docs/project_spec.md` §9 for the milestone sequence, and each `models/<layer>/README.md` for what's planned in that layer.
 
 ## Structure
 
-- `data_generator/` — Python synthetic data generator (not yet implemented).
-- `models/bronze/`, `models/silver/`, `models/gold/` — dbt models, one folder per Medallion layer.
-- `tests/` — singular (custom SQL) dbt tests.
+- `data_generator/` — Python synthetic data generator, implemented. See `data_generator/README.md` for how each injected data quality issue works and a known gap vs. the original spec's model list.
+- `models/bronze/`, `models/silver/`, `models/gold/` — dbt models, one folder per Medallion layer. Not yet implemented.
+- `tests/` — singular (custom SQL) dbt tests. Not yet implemented.
 - `seeds/`, `macros/` — dbt seeds and macros.
 - `.github/workflows/ci.yml` — PR-triggered dbt build (currently a skeleton; needs a `profiles.yml` CI target and repo secrets before it will actually run).
 
 ## Commands
 
-Not yet applicable — no `profiles.yml`, no BigQuery project configured, no generator output to build from. Update this section once those exist (expect: `dbt deps`, `dbt build`, `dbt test`, and a generator invocation command).
+- `python data_generator/generate.py --seed 42` — generate synthetic raw data into `data_generator/output/` (gitignored).
+
+No `profiles.yml` or BigQuery project configured yet, so `dbt` commands aren't runnable. Update this section once those exist.
