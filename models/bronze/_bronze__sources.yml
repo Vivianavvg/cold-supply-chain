@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+  - name: raw
+    description: "Raw tables loaded from data_generator/ output, one table per CSV."
+    schema: raw
+    tables:
+      - name: products
+      - name: carriers
+      - name: routes
+      - name: shipments
+      - name: shipment_legs
+      - name: sensor_readings
+      - name: shipment_events

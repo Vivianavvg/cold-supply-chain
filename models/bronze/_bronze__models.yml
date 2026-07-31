@@ -1,0 +1,121 @@
+version: 2
+
+models:
+  - name: stg_product_master
+    description: "One row per product, staged from the raw products source. No transformation."
+    columns:
+      - name: product_id
+        description: "Primary key."
+        tests: [unique, not_null]
+      - name: safe_temp_min_c
+        description: "Lower bound of the product's safe temperature range."
+        tests: [not_null]
+      - name: safe_temp_max_c
+        description: "Upper bound of the product's safe temperature range."
+        tests: [not_null]
+
+  - name: stg_carrier_master
+    description: "One row per carrier, staged from the raw carriers source. No transformation."
+    columns:
+      - name: carrier_id
+        description: "Primary key."
+        tests: [unique, not_null]
+      - name: fuel_type
+        description: "Used to derive estimated_emissions_kg in Gold."
+        tests:
+          - accepted_values:
+              values: ["diesel", "biodiesel", "electric", "jet_fuel", "marine_diesel"]
+
+  - name: stg_route_metadata
+    description: "One row per route, staged from the raw routes source. No transformation."
+    columns:
+      - name: route_id
+        description: "Primary key."
+        tests: [unique, not_null]
+      - name: transport_mode
+        tests:
+          - accepted_values:
+              values: ["truck", "rail", "air", "sea"]
+
+  - name: stg_shipments
+    description: >
+      One row per shipment. product_id and route_id are deliberately nullable
+      (spec 3.1 missing/null metadata injection) - do not add not_null tests
+      to those columns; the null rate is asserted by a singular test instead.
+    columns:
+      - name: shipment_id
+        description: "Primary key."
+        tests: [unique, not_null]
+      - name: carrier_id
+        description: "Not part of the missing-metadata injection - always populated."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_carrier_master')
+              field: carrier_id
+      - name: product_id
+        tests:
+          - relationships:
+              to: ref('stg_product_master')
+              field: product_id
+      - name: route_id
+        tests:
+          - relationships:
+              to: ref('stg_route_metadata')
+              field: route_id
+
+  - name: stg_shipment_legs
+    description: "One row per shipment leg - the grain the Gold fact table is built at (spec 4.1)."
+    columns:
+      - name: leg_id
+        description: "Primary key."
+        tests: [unique, not_null]
+      - name: shipment_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_shipments')
+              field: shipment_id
+      - name: device_id
+        tests: [not_null]
+
+  - name: stg_sensor_readings
+    description: "One row per temperature reading. Sensor-level grain - rolled up in Gold, not exposed there directly."
+    columns:
+      - name: reading_id
+        description: "Primary key."
+        tests: [unique, not_null]
+      - name: leg_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_shipment_legs')
+              field: leg_id
+      - name: temperature_unit
+        description: "Mixed C/F across devices (spec 3.1) - normalized in Silver."
+        tests:
+          - accepted_values:
+              values: ["C", "F"]
+
+  - name: stg_shipment_events
+    description: "One row per shipment lifecycle event (picked_up / arrived_checkpoint / delivered)."
+    columns:
+      - name: event_id
+        description: "Primary key."
+        tests: [unique, not_null]
+      - name: shipment_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_shipments')
+              field: shipment_id
+      - name: leg_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_shipment_legs')
+              field: leg_id
+      - name: event_type
+        tests:
+          - accepted_values:
+              values: ["picked_up", "arrived_checkpoint", "delivered"]
