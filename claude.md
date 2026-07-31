@@ -6,12 +6,13 @@ Guidance for Claude Code when working in this repository.
 
 Cold-Chain Visibility & Spoilage Risk Analytics — a dbt/BigQuery analytics engineering project. Full spec: `docs/project_spec.md`.
 
-Data generator (M2) is implemented. dbt models, tests, and CI logic are not yet implemented. See `docs/project_spec.md` §9 for the milestone sequence, and each `models/<layer>/README.md` for what's planned in that layer.
+Data generator (M2) and Bronze staging models are implemented. Silver, Gold, tests, and CI logic are not yet implemented. See `docs/project_spec.md` §9 for the milestone sequence, and each `models/<layer>/README.md` for what's planned in that layer.
 
 ## Structure
 
-- `data_generator/` — Python synthetic data generator, implemented. See `data_generator/README.md` for how each injected data quality issue works and a known gap vs. the original spec's model list.
-- `models/bronze/`, `models/silver/`, `models/gold/` — dbt models, one folder per Medallion layer. Not yet implemented.
+- `data_generator/` — Python synthetic data generator, implemented. See `data_generator/README.md` for how each injected data quality issue works.
+- `models/bronze/` — staging models, implemented (not yet runnable - no BigQuery project/`profiles.yml` and raw CSVs aren't loaded anywhere yet). Includes `stg_shipments`/`stg_shipment_legs`, added beyond the original spec's model list to carry shipment/leg identity - see `models/bronze/README.md`.
+- `models/silver/`, `models/gold/` — dbt models. Not yet implemented.
 - `tests/` — singular (custom SQL) dbt tests. Not yet implemented.
 - `seeds/`, `macros/` — dbt seeds and macros.
 - `.github/workflows/ci.yml` — PR-triggered dbt build (currently a skeleton; needs a `profiles.yml` CI target and repo secrets before it will actually run).

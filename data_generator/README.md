@@ -31,4 +31,4 @@ Injection rates are tunable in `config.py`. Pass `--shipments N` to change volum
 
 ## Known gap vs. the original spec
 
-Spec §5 lists five Bronze staging models but none for shipment/leg identity. `shipments.csv` and `shipment_legs.csv` exist here because the Gold grain (one row per shipment leg, §4.1) and the referential-integrity test (§6.2, non-null route/carrier per leg) both require an upstream source for that identity. When building Bronze, add `stg_shipments` / `stg_shipment_legs` (or fold into an existing model) to cover them.
+Spec §5 lists five Bronze staging models but none for shipment/leg identity. `shipments.csv` and `shipment_legs.csv` exist here because the Gold grain (one row per shipment leg, §4.1) and the referential-integrity test (§6.2, non-null route/carrier per leg) both require an upstream source for that identity. Resolved in Bronze via `stg_shipments` / `stg_shipment_legs` — see `models/bronze/README.md`.
