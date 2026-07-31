@@ -1,0 +1,43 @@
+version: 2
+
+models:
+  - name: int_sensor_readings_deduped
+    description: "stg_sensor_readings with rapid-fire duplicate readings removed (spec 3.1)."
+    columns:
+      - name: reading_id
+        tests: [unique, not_null]
+
+  - name: int_sensor_readings_normalized
+    description: "Deduped readings with a Celsius-normalized value added alongside the original."
+    columns:
+      - name: reading_id
+        tests: [unique, not_null]
+      - name: temperature_value_c
+        tests: [not_null]
+
+  - name: int_device_drift_flags
+    description: >
+      One row per device with a calibration-drift verdict, computed from
+      average deviation from each observed leg's product safe-range midpoint.
+      Heuristic, not ground truth - see model SQL comment for limitations.
+    columns:
+      - name: device_id
+        tests: [unique, not_null]
+      - name: is_drift_flagged
+        tests: [not_null]
+
+  - name: int_sensor_readings_drift_flagged
+    description: "Normalized readings with each device's drift verdict attached."
+    columns:
+      - name: reading_id
+        tests: [unique, not_null]
+      - name: is_drift_flagged
+        tests: [not_null]
+
+  - name: int_shipment_events_sequenced
+    description: "stg_shipment_events reordered by true event_ts instead of arrival order (spec 3.1)."
+    columns:
+      - name: event_id
+        tests: [unique, not_null]
+      - name: event_sequence
+        tests: [not_null]
