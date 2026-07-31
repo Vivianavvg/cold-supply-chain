@@ -1,0 +1,27 @@
+name: 'coldchain_analytics'
+version: '0.1.0'
+config-version: 2
+
+profile: 'coldchain_analytics'
+
+model-paths: ["models"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  coldchain_analytics:
+    bronze:
+      +materialized: view
+      +schema: bronze
+    silver:
+      +materialized: view
+      +schema: silver
+    gold:
+      +materialized: table
+      +schema: gold

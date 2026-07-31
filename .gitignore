@@ -1,0 +1,23 @@
+# dbt
+target/
+dbt_packages/
+logs/
+.user.yml
+profiles.yml
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Env / secrets
+.env
+*.env
+service-account*.json
+*-credentials.json
+
+# OS
+.DS_Store
+Thumbs.db
