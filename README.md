@@ -28,7 +28,7 @@ docs/             project spec and design notes
 
 ## Status
 
-Data generator (`data_generator/`) and Bronze staging models (`models/bronze/`) implemented. Silver, Gold, tests, and CI logic not yet implemented. See [`docs/project_spec.md`](docs/project_spec.md) §9 for the milestone sequence.
+Data generator (`data_generator/`), Bronze staging models, and Silver intermediate models (dedup, unit normalization, drift flagging, event sequencing) implemented. Gold and CI logic not yet implemented. See [`docs/project_spec.md`](docs/project_spec.md) §9 for the milestone sequence.
 
 ## Setup
 
