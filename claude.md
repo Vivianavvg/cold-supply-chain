@@ -6,6 +6,8 @@ Guidance for Claude Code when working in this repository.
 
 Cold-Chain Visibility & Spoilage Risk Analytics — a dbt/BigQuery analytics engineering project. Full spec: `docs/project_spec.md`.
 
+**Resuming a session? Read `docs/session_handoff.md` first** — it has current branch/PR state, what's implemented, decisions made and why, and open questions for the next milestone. Update it at the end of each work session.
+
 Data generator (M2), Bronze staging models, and Silver intermediate models are implemented. Gold and CI logic are not yet implemented. See `docs/project_spec.md` §9 for the milestone sequence, and each `models/<layer>/README.md` for what's planned in that layer.
 
 ## Structure
