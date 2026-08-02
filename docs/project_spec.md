@@ -84,10 +84,12 @@ The Gold fact table grain is one row per shipment leg (the segment of a shipment
 
 ### 4.3 Key derived metrics (computed in Gold)
 
-- `minutes_out_of_range` — total minutes a shipment leg spent outside the product's safe temperature range.
-- `max_temp_deviation_c` — the single worst deviation from the safe range during the leg.
-- `spoilage_risk_flag` — boolean/tiered flag based on configurable thresholds (e.g., >30 minutes out of range = high risk).
-- `estimated_emissions_kg` — estimated carbon emissions for the leg, derived from distance, transport mode, and fuel type.
+- `minutes_out_of_range` — total minutes a shipment leg spent outside the product's safe temperature range. Computed only from readings where `is_drift_flagged = false` (see decision below).
+- `max_temp_deviation_c` — the single worst deviation from the safe range during the leg, same drift exclusion as above.
+- `spoilage_risk_flag` — boolean/tiered flag based on configurable thresholds (e.g., >30 minutes out of range = high risk). **Decided:** readings from drift-flagged devices (`int_sensor_readings_drift_flagged.is_drift_flagged`) are excluded from the `minutes_out_of_range` calc entirely, rather than down-weighted or counted as-is — a biased device could otherwise push a leg over/under the risk threshold on bad data. The fact table also carries `has_drift_affected_readings` (or `pct_readings_drift_flagged`) so this exclusion is visible, not silent. If a leg has zero clean (non-drift-flagged) readings, `spoilage_risk_flag` is `NULL`/`'unscoreable'`, not `false` — "no valid data" must not read as "confirmed safe."
+- `estimated_emissions_kg` — estimated carbon emissions for the leg, derived from distance, transport mode, and fuel type. Formula still TBD — open question, see `docs/session_handoff.md`.
+
+**Decided — null `product_id`/`route_id` handling:** shipments with a null `product_id` or `route_id` (§3.1 injection, ~3% of shipments) are **kept** in `fct_shipment_conditions`, not excluded, using an `'UNKNOWN'` surrogate member in `dim_product`/`dim_route` (standard Kimball pattern). A `has_missing_metadata` flag on the fact row makes this visible. Rationale: excluding these legs would silently under-report shipment volume and — more importantly — a null `product_id` means the safe temperature range is unknown, so spoilage risk can't be assessed for that leg either; dropping it would make the exact shipments most worth flagging invisible instead. Same principle as the drift-flagged decision above: missing/untrustworthy data must be visible and marked unscoreable, never silently dropped or defaulted into a false "safe" result.
 
 ## 5. dbt Project Structure
 

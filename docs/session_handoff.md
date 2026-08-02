@@ -21,12 +21,14 @@ Feature branch → push → open PR on github.com → user merges via the web UI
 | Repo scaffold | `main` | Merged |
 | M2: Data generator | `main` (was `feature/data-generator`) | Merged |
 | Bronze staging models | `main` (was `feature/bronze-models`) | Merged |
-| Silver intermediate models + 3 tests | `feature/silver-models` | **Pushed, PR open, not yet merged** — https://github.com/Vivianavvg/cold-supply-chain/pull/new/feature/silver-models |
-| Gold star schema | — | Not started |
+| Silver intermediate models + 3 tests | `main` (was `feature/silver-models`) | Merged (PR #3) |
+| Gold star schema | — | Not started — design decisions made, see below |
 | CI/CD (real) | — | Not started |
 | Dashboard | — | Not started |
 
-**Next action when resuming:** merge the `feature/silver-models` PR (green button, ignore the red CI check), then `git checkout main && git pull && git branch -d feature/silver-models`, then branch `feature/gold-models` and start Gold.
+**Next action when resuming:** branch `feature/gold-models` off `main` and start implementing Gold using the decisions below.
+
+**Note on this handoff doc's history:** this file's original commit (`fc1ba2f`) was made *after* PR #3 had already been merged, so it never made it into `main` via that PR — it sat orphaned on `feature/silver-models` until cherry-picked directly onto `main` in a later session. If a future PR merge seems to "lose" doc-only commits made close to merge time, check for the same race — commits pushed after a PR merges don't ride along.
 
 ## What exists and why (decisions made along the way)
 
@@ -38,10 +40,14 @@ Feature branch → push → open PR on github.com → user merges via the web UI
 - **No BigQuery project, no `profiles.yml` exist yet** — nothing in `models/` has actually been run through `dbt`. All SQL has instead been sanity-checked by hand-translating the logic into DuckDB against real generator output (dedup count matched the exact injected duplicate count, zero normalization violations, exact row-count parity on event sequencing). This should still happen for real once a BigQuery sandbox is set up — don't assume DuckDB verification is equivalent to `dbt build` passing.
 - **Tests**: 3 of the spec's 5 singular tests (§6.2) are written — dedup effectiveness, normalization correctness, event row-count parity. The other 2 (drift-exclusion from spoilage calc, non-null route/carrier per leg) need Gold to exist first; noted in `tests/README.md`.
 
-## Not yet decided / open questions for Gold
+## Gold design decisions (made 2026-08-01, not yet implemented)
 
-- Business rule for shipment legs with a null `product_id` or `route_id` (spec §3.1 injection): excluded from the Gold fact table, or defaulted somehow? This decision determines how to write the deferred "every leg has non-null route/carrier" test.
-- How exactly `spoilage_risk_flag` should treat drift-flagged readings (spec §6.2 says a drifted device "doesn't silently produce a false spoilage_risk_flag" — exclude those readings from the minutes-out-of-range calc entirely? Down-weight? Flag but still count?).
+- **Null `product_id`/`route_id` (spec §3.1 injection, ~3% of shipments):** kept in `fct_shipment_conditions`, not excluded. Map to an `'UNKNOWN'` surrogate member in `dim_product`/`dim_route` (Kimball pattern), and add a `has_missing_metadata` flag on the fact row. Rationale: excluding would silently under-report shipment volume, and since `product_id` is what determines the safe temp range, dropping these legs would make exactly the shipments most worth checking invisible instead of flagged. Full writeup in `docs/project_spec.md` §4.3.
+- **`spoilage_risk_flag` vs. drift-flagged readings (spec §6.2):** readings where `int_sensor_readings_drift_flagged.is_drift_flagged = true` are excluded entirely from the `minutes_out_of_range`/`max_temp_deviation_c` calc (not down-weighted, not counted as-is) — a biased device could otherwise push a leg over/under the risk threshold on bad data. Fact row carries `has_drift_affected_readings` (or `pct_readings_drift_flagged`) so the exclusion is visible. If a leg has zero clean readings left after exclusion, `spoilage_risk_flag` is `NULL`/`'unscoreable'`, not `false` — "no valid data" must not read as "confirmed safe." Same principle as the null-metadata decision above. Full writeup in `docs/project_spec.md` §4.3.
+- Both decisions above now unblock the 2 deferred singular tests noted below (drift-exclusion, non-null route/carrier) — update `tests/README.md` when those are written against the actual Gold SQL.
+
+## Still open
+
 - `estimated_emissions_kg` formula — spec §4.3 says "derived from distance, transport mode, and fuel type" but doesn't give the formula. `carriers.emissions_factor_kg_co2_per_km` exists in the generator output as a starting point.
 
 ## Environment notes
