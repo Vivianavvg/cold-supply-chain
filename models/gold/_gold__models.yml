@@ -1,0 +1,82 @@
+version: 2
+
+models:
+  - name: dim_product
+    description: "One row per product plus an 'UNKNOWN' surrogate member for shipments with a null product_id (spec 3.1)."
+    columns:
+      - name: product_id
+        description: "Primary key. Includes the literal 'UNKNOWN' value."
+        tests: [unique, not_null]
+
+  - name: dim_route
+    description: "One row per route plus an 'UNKNOWN' surrogate member for shipments with a null route_id (spec 3.1)."
+    columns:
+      - name: route_id
+        description: "Primary key. Includes the literal 'UNKNOWN' value."
+        tests: [unique, not_null]
+
+  - name: dim_carrier
+    description: "One row per carrier. No 'UNKNOWN' member - carrier_id is never null in the source data."
+    columns:
+      - name: carrier_id
+        description: "Primary key."
+        tests: [unique, not_null]
+
+  - name: dim_date
+    description: "Date spine covering every date from the earliest ship_date to the latest leg_end_ts."
+    columns:
+      - name: date_day
+        description: "Primary key."
+        tests: [unique, not_null]
+
+  - name: fct_shipment_conditions
+    description: >
+      One row per shipment leg (spec 4.1). product_id/route_id are 'UNKNOWN'
+      rather than null when the source shipment had missing metadata (spec
+      3.1) - see has_missing_metadata. minutes_out_of_range and
+      max_temp_deviation_c exclude drift-flagged sensor readings entirely -
+      see has_drift_affected_readings and pct_readings_drift_flagged.
+      spoilage_risk_flag is null ("unscoreable"), not false, when a leg has
+      zero clean readings to judge. Full rationale in docs/project_spec.md 4.3.
+    columns:
+      - name: leg_id
+        description: "Primary key."
+        tests: [unique, not_null]
+      - name: shipment_id
+        tests:
+          - relationships:
+              to: ref('stg_shipments')
+              field: shipment_id
+      - name: product_id
+        description: "FK to dim_product. 'UNKNOWN' when the source shipment's product_id was null."
+        tests:
+          - relationships:
+              to: ref('dim_product')
+              field: product_id
+      - name: route_id
+        description: "FK to dim_route. 'UNKNOWN' when the source shipment's route_id was null."
+        tests:
+          - relationships:
+              to: ref('dim_route')
+              field: route_id
+      - name: carrier_id
+        tests:
+          - relationships:
+              to: ref('dim_carrier')
+              field: carrier_id
+      - name: has_missing_metadata
+        description: "True when the source shipment had a null product_id and/or route_id (spec 3.1 injection)."
+        tests: [not_null]
+      - name: has_drift_affected_readings
+        description: "True when at least one reading on this leg came from a device flagged as calibration-drifted."
+        tests: [not_null]
+      - name: has_cold_chain_break
+        description: >
+          Ground-truth label from the data generator (config.COLD_CHAIN_BREAK_RATE)
+          marking legs with an injected temperature excursion window. Not
+          something a real pipeline would have - kept here only so
+          spoilage_risk_flag can be validated against a known-true answer in
+          tests, same role int_device_drift_flags plays for drift.
+        tests: [not_null]
+      - name: spoilage_risk_flag
+        description: "Null when the leg has zero clean (non-drift-flagged) readings - 'unscoreable', not false."

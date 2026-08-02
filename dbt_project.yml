@@ -14,6 +14,11 @@ clean-targets:
   - "target"
   - "dbt_packages"
 
+vars:
+  # Minutes a leg must spend outside the product's safe temp range before
+  # spoilage_risk_flag is true. Example threshold from spec 4.3.
+  spoilage_risk_minutes_threshold: 30
+
 models:
   coldchain_analytics:
     bronze:
