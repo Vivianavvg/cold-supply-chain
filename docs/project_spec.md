@@ -78,16 +78,20 @@ The Gold fact table grain is one row per shipment leg (the segment of a shipment
 
 | Table | Type | Key columns |
 |---|---|---|
-| TBD | TBD | TBD |
+| `fct_shipment_conditions` | Fact, one row per shipment leg | `leg_id` (PK), `shipment_id`, `product_id`/`route_id`/`carrier_id` (FKs), `ship_date` (FK to `dim_date`) |
+| `dim_product` | Dimension + `'UNKNOWN'` surrogate member | `product_id` (PK) |
+| `dim_route` | Dimension + `'UNKNOWN'` surrogate member | `route_id` (PK) |
+| `dim_carrier` | Dimension, no `'UNKNOWN'` member (`carrier_id` never null in source) | `carrier_id` (PK) |
+| `dim_date` | Date spine, min `ship_date` to max `leg_end_ts` | `date_day` (PK) |
 
-(Planned tables are listed in §5: `fct_shipment_conditions`, `dim_product`, `dim_route`, `dim_carrier`, `dim_date`.)
+Implemented in `models/gold/`.
 
 ### 4.3 Key derived metrics (computed in Gold)
 
 - `minutes_out_of_range` — total minutes a shipment leg spent outside the product's safe temperature range. Computed only from readings where `is_drift_flagged = false` (see decision below).
 - `max_temp_deviation_c` — the single worst deviation from the safe range during the leg, same drift exclusion as above.
 - `spoilage_risk_flag` — boolean/tiered flag based on configurable thresholds (e.g., >30 minutes out of range = high risk). **Decided:** readings from drift-flagged devices (`int_sensor_readings_drift_flagged.is_drift_flagged`) are excluded from the `minutes_out_of_range` calc entirely, rather than down-weighted or counted as-is — a biased device could otherwise push a leg over/under the risk threshold on bad data. The fact table also carries `has_drift_affected_readings` (or `pct_readings_drift_flagged`) so this exclusion is visible, not silent. If a leg has zero clean (non-drift-flagged) readings, `spoilage_risk_flag` is `NULL`/`'unscoreable'`, not `false` — "no valid data" must not read as "confirmed safe."
-- `estimated_emissions_kg` — estimated carbon emissions for the leg, derived from distance, transport mode, and fuel type. Formula still TBD — open question, see `docs/session_handoff.md`.
+- `estimated_emissions_kg` — estimated carbon emissions for the leg. **Decided:** `planned_distance_km * carriers.emissions_factor_kg_co2_per_km`. Deliberately excludes a `transport_mode` multiplier: the generator ties `transport_mode` to leg speed/duration, not to any emissions factor, so a mode multiplier would be an invented number rather than one derived from the data as generated.
 
 **Decided — null `product_id`/`route_id` handling:** shipments with a null `product_id` or `route_id` (§3.1 injection, ~3% of shipments) are **kept** in `fct_shipment_conditions`, not excluded, using an `'UNKNOWN'` surrogate member in `dim_product`/`dim_route` (standard Kimball pattern). A `has_missing_metadata` flag on the fact row makes this visible. Rationale: excluding these legs would silently under-report shipment volume and — more importantly — a null `product_id` means the safe temperature range is unknown, so spoilage risk can't be assessed for that leg either; dropping it would make the exact shipments most worth flagging invisible instead. Same principle as the drift-flagged decision above: missing/untrustworthy data must be visible and marked unscoreable, never silently dropped or defaulted into a false "safe" result.
 
