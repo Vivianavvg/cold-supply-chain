@@ -22,11 +22,11 @@ Feature branch → push → open PR on github.com → user merges via the web UI
 | M2: Data generator | `main` (was `feature/data-generator`) | Merged |
 | Bronze staging models | `main` (was `feature/bronze-models`) | Merged |
 | Silver intermediate models + 3 tests | `main` (was `feature/silver-models`) | Merged (PR #3) |
-| Gold star schema | `feature/gold-models` | Implemented, DuckDB-verified, not yet pushed/PR'd |
+| Gold star schema | `main` (was `feature/gold-models`) | Merged (PR #4) |
 | CI/CD (real) | — | Not started |
 | Dashboard | — | Not started |
 
-**Next action when resuming:** push `feature/gold-models` and open a PR, or if already merged by the time you're reading this, branch `feature/ci-cd` (or `feature/dashboard`) and pick up the next milestone from spec §9.
+**Next action when resuming:** all three model layers (Bronze/Silver/Gold) are implemented and merged, but nothing has ever run through real `dbt` — no BigQuery project/`profiles.yml` exist yet. Pick one: (a) stand up a BigQuery sandbox + `profiles.yml` so `dbt build` can actually run for the first time, catching anything the DuckDB hand-translation missed (spec §4.2's `dim_date` in particular was never DuckDB-verified — see below), or (b) branch `feature/ci-cd` and start spec §7. Either is reasonable next; (a) is lower-risk since it validates everything built so far before adding more on top.
 
 **Note on this handoff doc's history:** this file's original commit (`fc1ba2f`) was made *after* PR #3 had already been merged, so it never made it into `main` via that PR — it sat orphaned on `feature/silver-models` until cherry-picked directly onto `main` in a later session. If a future PR merge seems to "lose" doc-only commits made close to merge time, check for the same race — commits pushed after a PR merges don't ride along.
 
