@@ -7,6 +7,12 @@ on:
 jobs:
   dbt-build:
     runs-on: ubuntu-latest
+    env:
+      DBT_PROFILES_DIR: ci
+      DBT_PROJECT: ${{ secrets.GCP_PROJECT }}
+      DBT_DATASET: ci_pr_${{ github.event.pull_request.number }}
+      DBT_GCP_KEYFILE: /tmp/gcp-sa-key.json
+      GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-sa-key.json
     steps:
       - uses: actions/checkout@v4
 
@@ -25,9 +31,23 @@ jobs:
       - name: dbt deps
         run: dbt deps
 
-      - name: dbt build (dev dataset)
+      # Writes into ci_pr_<PR number>_{bronze,silver,gold} - isolated from the
+      # real bronze/silver/gold datasets by the target-aware schema macro
+      # (macros/generate_schema_name.sql). Reads raw.* directly, same as prod.
+      - name: dbt build (isolated per-PR dataset)
         run: dbt build --target ci
-        env:
-          DBT_GCP_KEYFILE: /tmp/gcp-sa-key.json
-          DBT_PROJECT: ${{ secrets.GCP_PROJECT }}
-          DBT_DATASET: coldchain_dev
+
+      - name: Delete per-PR CI dataset
+        if: always()
+        run: |
+          python -c "
+          from google.cloud import bigquery
+          import os
+          client = bigquery.Client(project=os.environ['DBT_PROJECT'])
+          for suffix in ('bronze', 'silver', 'gold'):
+              client.delete_dataset(
+                  f\"{os.environ['DBT_PROJECT']}.{os.environ['DBT_DATASET']}_{suffix}\",
+                  delete_contents=True,
+                  not_found_ok=True,
+              )
+          "

@@ -28,7 +28,7 @@ docs/             project spec and design notes
 
 ## Status
 
-Data generator (`data_generator/`), Bronze staging models, and Silver intermediate models (dedup, unit normalization, drift flagging, event sequencing) implemented. Gold and CI logic not yet implemented. See [`docs/project_spec.md`](docs/project_spec.md) §9 for the milestone sequence.
+Data generator, Bronze/Silver/Gold models, and CI (`.github/workflows/ci.yml`, dbt build + test on every PR against an isolated per-PR BigQuery dataset) are implemented and verified against a real BigQuery project. The dashboard is not yet implemented. See [`docs/project_spec.md`](docs/project_spec.md) §9 for the milestone sequence and [`docs/session_handoff.md`](docs/session_handoff.md) for current in-progress state.
 
 ## Setup
 
@@ -37,4 +37,6 @@ pip install -r requirements.txt
 python data_generator/generate.py --seed 42
 ```
 
-See [`data_generator/README.md`](data_generator/README.md) for output details and tunable injection rates. BigQuery sandbox project creation, `profiles.yml` configuration, and `dbt build` instructions will be added once the dbt models exist.
+See [`data_generator/README.md`](data_generator/README.md) for output details and tunable injection rates.
+
+Running `dbt build` for real requires a BigQuery project and a service-account keyfile referenced from `~/.dbt/profiles.yml` (not committed — see `docs/session_handoff.md`'s "BigQuery sandbox setup" section for how it was set up). Once that exists, load the generated CSVs into the `raw` dataset with `data_generator/load_to_bigquery.py`, then run `dbt build`.

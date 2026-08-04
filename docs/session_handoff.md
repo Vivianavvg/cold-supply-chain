@@ -12,7 +12,7 @@ Repo: https://github.com/Vivianavvg/cold-supply-chain (owner: Vivianavvg)
 
 Feature branch → push → open PR on github.com → user merges via the web UI → pull `main` locally → delete the merged local branch → branch again for the next milestone. `gh` CLI is **not installed** on this machine, so PRs must be opened/merged manually on github.com; Claude can push branches and give the PR URL but cannot merge.
 
-`.github/workflows/ci.yml` will show **all checks failed** on every PR — this is expected and fine to ignore/merge through. It's a placeholder from the initial scaffold that references a BigQuery service account and `profiles.yml` `ci` target that don't exist yet. Real CI/CD is its own milestone (spec §7), planned after Gold.
+`.github/workflows/ci.yml` is now a real, tested workflow (see "CI/CD" section below) — no longer the all-checks-fail placeholder. It needs two repo secrets added on github.com before it will actually pass on a PR (`GCP_SA_KEY`, `GCP_PROJECT`) — see that section for exact steps; until those are added, PRs will show a failing check (auth error, not a code problem).
 
 ## Status as of this handoff
 
@@ -23,11 +23,11 @@ Feature branch → push → open PR on github.com → user merges via the web UI
 | Bronze staging models | `main` (was `feature/bronze-models`) | Merged |
 | Silver intermediate models + 3 tests | `main` (was `feature/silver-models`) | Merged (PR #3) |
 | Gold star schema | `main` (was `feature/gold-models`) | Merged (PR #4) |
-| BigQuery sandbox + first real `dbt build` | `feature/bigquery-setup` | **Done — `dbt build` green, PR open** |
-| CI/CD (real) | — | Not started |
+| BigQuery sandbox + first real `dbt build` | `main` (was `feature/bigquery-setup`) | Merged (PR #5) |
+| CI/CD (real) | `feature/ci-cd` | **Done, verified locally — PR open, needs repo secrets added before merge** |
 | Dashboard | — | Not started |
 
-**Next action when resuming:** merge the `feature/bigquery-setup` PR (see below), pull `main`, delete the local branch, then start either CI/CD (spec §7) or the dashboard (spec §8) — both are open, pick either.
+**Next action when resuming:** add the two GitHub repo secrets (see "CI/CD" section below), then merge the `feature/ci-cd` PR, pull `main`, delete the local branch, then start the dashboard (spec §8) — the last open milestone.
 
 **Note on this handoff doc's history:** this file's original commit (`fc1ba2f`) was made *after* PR #3 had already been merged, so it never made it into `main` via that PR — it sat orphaned on `feature/silver-models` until cherry-picked directly onto `main` in a later session. If a future PR merge seems to "lose" doc-only commits made close to merge time, check for the same race — commits pushed after a PR merges don't ride along.
 
@@ -88,16 +88,35 @@ Goal: get `dbt build` running for real for the first time (spec §2.1: Google Cl
    - **Deprecation notice** (not an error, build still passed): dbt 1.12 flags the `accepted_values`/other generic test configs in `_bronze__models.yml` that pass args top-level (e.g. `tests: [accepted_values: {values: [...]}]`) instead of nested under an `arguments:` key — `MissingArgumentsPropertyInGenericTestDeprecation`, 15 occurrences. Cosmetic today; will need nesting under `arguments:` before whatever future dbt version turns this into a hard error. Not fixed in this session — small, unrelated to the sandbox milestone, left as a follow-up.
 5. Committed `macros/generate_schema_name.sql` + `data_generator/load_to_bigquery.py` on `feature/bigquery-setup`, pushed, PR opened.
 
+## CI/CD (spec §7, done 2026-08-04, PR open on `feature/ci-cd`)
+
+Implements spec §7.1 (PR-triggered `dbt build`, required). §7.2 (optional daily scheduled production run) is **not implemented** — deliberately deferred, spec marks it optional, and it's a reasonable next increment on top of this.
+
+**Design problem discovered and fixed:** `macros/generate_schema_name.sql` (from the BigQuery sandbox milestone) always returned the literal `custom_schema_name` (`bronze`/`silver`/`gold`) regardless of `target`, ignoring `target.schema` entirely. A naive `ci` target would have silently built into the *same* production `bronze`/`silver`/`gold` datasets as local/prod runs — the opposite of spec §7.1's "isolated from production" requirement, and would let concurrent PRs stomp on each other and on manual runs. Fixed by making the macro target-aware: the `dev` target (this project's only long-lived warehouse, doubling as "prod") keeps the literal names unchanged; every other target gets `target.schema` prefixed onto the custom schema. Verified as a non-regression: `dbt show --select dim_carrier --target dev` after the change still resolved and queried the real `gold.dim_carrier` table with no error.
+
+**What was built:**
+- **`ci/profiles.yml`** — committed (the bare `profiles.yml` gitignore pattern matches at any depth, so `.gitignore` has an explicit `!ci/profiles.yml` negation for it). Only references `env_var()`s (`DBT_PROJECT`, `DBT_DATASET`, `DBT_GCP_KEYFILE`) — no secrets in the file itself, safe to commit.
+- **`.github/workflows/ci.yml`** — rewritten from the original placeholder. On every PR against `main`: writes the service-account key from a repo secret to `/tmp`, `dbt deps`, `dbt build --target ci` into a **per-PR-numbered dataset** (`ci_pr_<PR number>_{bronze,silver,gold}`, via `DBT_DATASET: ci_pr_${{ github.event.pull_request.number }}` + the schema macro fix above) so concurrent PRs never collide, then an `if: always()` cleanup step that deletes that PR's 3 CI datasets afterward (Python one-liner using `google-cloud-bigquery`, already a transitive dep of `dbt-bigquery` so no extra install needed) — keeps the free-tier project from accumulating one dataset trio per PR forever. CI reads `raw.*` directly (sources aren't affected by the schema macro), same shared raw data as local/prod — read-only from CI's perspective, so no isolation concern there.
+- **Verified for real, not just reasoned through**: ran the exact `dbt build --target ci` command locally against `cold-chain-supply` with `DBT_DATASET=ci_pr_test` before ever pushing — all 86 nodes passed, everything landed in `ci_pr_test_bronze/silver/gold`, confirmed via `dbt show --target dev` that the real `gold` dataset was untouched, then ran the same cleanup snippet the workflow uses to delete the 3 test datasets. The GitHub Actions run itself (real `ubuntu-latest` runner, real secrets) is still unverified — first PR push will be the actual first real-CI confirmation.
+- **`requirements.txt`** — bumped `dbt-bigquery~=1.8` → `~=1.12` (matches what's actually installed/tested) and added `google-cloud-bigquery~=3.42` explicitly (previously only installed ad hoc outside `requirements.txt`, needed directly by `data_generator/load_to_bigquery.py` and now by the CI cleanup step too). Dry-run `pip install` confirmed no dependency conflicts.
+
+**Required before merge — 2 GitHub repo secrets, added manually on github.com (Settings → Secrets and variables → Actions → New repository secret; no `gh` CLI on this machine, so this can't be scripted):**
+1. `GCP_SA_KEY` — full contents of the service account JSON keyfile (the same one at `~/.dbt/keys/<gcp-project-id>-sa.json` used for local dev). Paste the whole file content as the secret value.
+2. `GCP_PROJECT` — the GCP project ID (see local `~/.dbt/profiles.yml`, not recorded here per the redaction decision below).
+
+The existing `dbt-coldchain` service account (BigQuery Data Editor + Job User, already used for local dev) is reused for CI rather than creating a second one — sufficient permissions (dataset create/delete + query) already confirmed working via the local `raw` dataset load.
+
 ## Still open
 
-- Merge the `feature/bigquery-setup` PR (link above/in PR history).
-- Minor: nest the `accepted_values` test args under `arguments:` in `_bronze__models.yml` to clear the dbt 1.12 deprecation warning (see above) — small, no rush.
-- Minor: `requirements.txt` currently pins `dbt-bigquery~=1.8` but the sandbox actually runs on `dbt-core`/`dbt-bigquery` 1.12.0 (installed outside `requirements.txt`, per the note below) — worth reconciling next time dependencies are touched.
-- CI/CD (spec §7) and the dashboard (spec §8) are the next real milestones now that all three model layers are verified against a live warehouse.
+- Add the 2 GitHub repo secrets above, then merge the `feature/ci-cd` PR.
+- Minor: nest the `accepted_values` test args under `arguments:` in `_bronze__models.yml` to clear a dbt 1.12 deprecation warning (see BigQuery sandbox section above) — small, no rush.
+- Optional: spec §7.2's daily scheduled production-cadence workflow (generate new raw data, run full pipeline against prod, post a summary) — not implemented, marked optional in the spec.
+- The dashboard (spec §8) is the last unstarted real milestone.
 
 ## Environment notes
 
 - No `gh` CLI on this machine (checked both Bash and PowerShell) — PRs are manual via github.com.
 - No `gcloud`/`bq` CLI on this machine either — deliberately not installed; BigQuery auth goes through a service account key file instead (see "BigQuery sandbox setup" above), and CSV loading goes through the `google-cloud-bigquery` Python client rather than `bq load`.
-- `pandas`, `Faker`, `duckdb`, `dbt-core`, `dbt-bigquery`, `google-cloud-bigquery` are installed in whatever Python `python3` resolves to on this machine (Windows Store Python). `duckdb` isn't in `requirements.txt` — it's a local verification tool only, not a project dependency; the three dbt/BigQuery packages aren't in `requirements.txt` either yet (that file has historically been for the data generator's deps only — worth deciding whether to add a `requirements-dbt.txt` or similar once the sandbox setup is finished).
+- `pandas`, `Faker`, `duckdb`, `dbt-core`, `dbt-bigquery`, `google-cloud-bigquery` are installed in whatever Python `python3` resolves to on this machine (Windows Store Python). `duckdb` isn't in `requirements.txt` — it's a local verification tool only, not a project dependency. As of the CI/CD milestone, `dbt-bigquery` and `google-cloud-bigquery` **are** in `requirements.txt` (versions reconciled to match what's actually installed/tested — see "CI/CD" section above); `dbt-core` isn't listed explicitly since `dbt-bigquery` pulls in a matching version transitively.
 - **Windows Store Python gotcha**: `python3 -m dbt` doesn't work — see the `dbt.exe` full path note in "BigQuery sandbox setup" above.
+- **GCP project ID / service account email are deliberately not written in this doc** (redacted 2026-08-04, since this repo may go public) — check local `~/.dbt/profiles.yml` or the GCP console for the real values. Any new committed file that needs the project ID (like `data_generator/load_to_bigquery.py`) should read it from an env var, never hardcode it.
