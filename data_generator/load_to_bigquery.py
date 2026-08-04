@@ -4,13 +4,17 @@ Not a dbt model and not part of the regular pipeline - run manually after
 `python generate.py` whenever the raw dataset needs (re)loading. Uses schema
 autodetection since the bronze staging models expect properly typed columns
 (TIMESTAMP, DATE, FLOAT, BOOL), not everything as STRING.
+
+Requires GCP_PROJECT (and GOOGLE_APPLICATION_CREDENTIALS pointing at the
+service account keyfile) set in the environment - see docs/session_handoff.md.
 """
 
+import os
 import pathlib
 
 from google.cloud import bigquery
 
-PROJECT = "cold-chain-supply"
+PROJECT = os.environ["GCP_PROJECT"]
 DATASET = "raw"
 LOCATION = "US"
 OUTPUT_DIR = pathlib.Path(__file__).parent / "output"
