@@ -1,0 +1,11 @@
+coldchain_analytics:
+  target: ci
+  outputs:
+    ci:
+      type: bigquery
+      method: service-account
+      project: "{{ env_var('DBT_PROJECT') }}"
+      dataset: "{{ env_var('DBT_DATASET') }}"
+      threads: 4
+      keyfile: "{{ env_var('DBT_GCP_KEYFILE') }}"
+      location: US

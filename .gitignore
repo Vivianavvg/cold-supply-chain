@@ -4,6 +4,8 @@ dbt_packages/
 logs/
 .user.yml
 profiles.yml
+# ...except the CI profile, which only references env_var()s, no secrets
+!ci/profiles.yml
 
 # Python
 __pycache__/
