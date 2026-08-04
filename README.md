@@ -28,7 +28,11 @@ docs/             project spec and design notes
 
 ## Status
 
-Data generator, Bronze/Silver/Gold models, and CI (`.github/workflows/ci.yml`, dbt build + test on every PR against an isolated per-PR BigQuery dataset) are implemented and verified against a real BigQuery project. The dashboard is not yet implemented. See [`docs/project_spec.md`](docs/project_spec.md) §9 for the milestone sequence and [`docs/session_handoff.md`](docs/session_handoff.md) for current in-progress state.
+Data generator, Bronze/Silver/Gold models, CI (`.github/workflows/ci.yml`, dbt build + test on every PR against an isolated per-PR BigQuery dataset), and the dashboard query layer (`docs/dashboard.md`) are implemented and verified against a real BigQuery project. See [`docs/project_spec.md`](docs/project_spec.md) §9 for the milestone sequence and [`docs/session_handoff.md`](docs/session_handoff.md) for current in-progress state.
+
+## Dashboard
+
+Looker Studio report connected to the `gold` star schema — see [`docs/dashboard.md`](docs/dashboard.md) for the 4 view queries and setup steps.
 
 ## Setup
 

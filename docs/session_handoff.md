@@ -25,9 +25,9 @@ Feature branch → push → open PR on github.com → user merges via the web UI
 | Gold star schema | `main` (was `feature/gold-models`) | Merged (PR #4) |
 | BigQuery sandbox + first real `dbt build` | `main` (was `feature/bigquery-setup`) | Merged (PR #5) |
 | CI/CD (real) | `main` (was `feature/ci-cd`) | Merged (PR #6) — repo secrets added, PR merged 2026-08-04 |
-| Dashboard | — | Not started |
+| Dashboard | `feature/dashboard` | **Query layer + Looker Studio guide done, verified against real BigQuery — PR open. Actual Looker Studio report not yet built (needs your Google login, see below)** |
 
-**Next action when resuming:** the actual GitHub Actions run on the merged PR was never watched end-to-end this session (verification was local `dbt build --target ci` runs, not a live Actions log) — worth checking the Actions tab on the next PR to confirm the real runner behaves the same way. After that: start the dashboard (spec §8), the last open milestone.
+**Next action when resuming:** merge the `feature/dashboard` PR, then follow `docs/dashboard.md`'s "Looker Studio setup" section yourself (Claude can't operate Looker Studio's GUI — it authenticates with your own Google login). Separately: the actual GitHub Actions CI run has still never been watched end-to-end on a live PR (verification so far has been local `dbt build --target ci` runs only) — worth checking the Actions tab next time a PR opens against `main`.
 
 **Note on this handoff doc's history:** this file's original commit (`fc1ba2f`) was made *after* PR #3 had already been merged, so it never made it into `main` via that PR — it sat orphaned on `feature/silver-models` until cherry-picked directly onto `main` in a later session. If a future PR merge seems to "lose" doc-only commits made close to merge time, check for the same race — commits pushed after a PR merges don't ride along.
 
@@ -108,12 +108,26 @@ Both were added by the user on github.com and the PR was merged 2026-08-04. **No
 
 The existing `dbt-coldchain` service account (BigQuery Data Editor + Job User, already used for local dev) is reused for CI rather than creating a second one — sufficient permissions (dataset create/delete + query) already confirmed working via the local `raw` dataset load.
 
+## Dashboard (spec §8, done 2026-08-04, `feature/dashboard`)
+
+Unlike every prior milestone, this one is only partly something Claude can build directly — Looker Studio (the spec's named tool) authenticates with the user's own Google login and is a GUI-only tool with no CLI/API path available here, so the actual report has to be built by hand, by the user, following a guide.
+
+**Decision:** no new dbt layer was added. Gold (`fct_shipment_conditions` + dims) is already spec §5's presentation-ready layer, and all 4 of spec §8.1's suggested views are expressible as plain joins/aggregations over it — adding a `marts/` layer on top would have been unrequested abstraction over something a BI tool's own query box already handles.
+
+**What was built — `docs/dashboard.md`:**
+- The 4 suggested views (spec §8.1) as standalone SQL queries meant to be pasted into Looker Studio as **Custom Query** BigQuery data sources: spoilage risk by route×carrier (table/heatmap), minutes-out-of-range by product (histogram), emissions-vs-risk scatter per route (the core tradeoff visual), spoilage risk trend over time (time series).
+- **All 4 queries run for real against the live `gold` dataset before being committed** (95 route×carrier rows, 1004 leg-level rows, 16 routes, 181 days — all sane). Script used for this isn't kept in the repo (one-off verification, not project code).
+- The trend view (#4) is deliberately keyed on `date(leg_start_ts)`, not the shipment-level `ship_date` — a multi-leg shipment's later legs can start days after `ship_date`, so trending on `ship_date` would misdate when risk was actually observed.
+- **Known limitation, documented in the doc itself:** since spec §7.2's optional daily scheduled production job was never implemented, the trend view is a static snapshot of the one `--seed 42` dataset (Feb–Aug 2026), not a live-growing series. It demonstrates the intended chart shape; it won't gain new days without manually regenerating data, reloading, and rebuilding.
+- Step-by-step Looker Studio connection instructions (sign in, Add data → BigQuery → Custom Query per view, chart type per view, % formatting) — this part is unverified by Claude since it requires the user's own Google login; can't be tested the way the SQL was.
+
 ## Still open
 
-- Confirm the real GitHub Actions run on the next PR actually passes (see note above — this milestone was verified locally, not via a live Actions log yet).
+- **Build the actual Looker Studio report** — the one piece of this milestone Claude couldn't do directly. Follow `docs/dashboard.md`'s setup section.
+- Confirm the real GitHub Actions CI run on the next PR actually passes (still only verified locally via `dbt build --target ci`, never watched on a live Actions log).
 - Minor: nest the `accepted_values` test args under `arguments:` in `_bronze__models.yml` to clear a dbt 1.12 deprecation warning (see BigQuery sandbox section above) — small, no rush.
-- Optional: spec §7.2's daily scheduled production-cadence workflow (generate new raw data, run full pipeline against prod, post a summary) — not implemented, marked optional in the spec.
-- The dashboard (spec §8) is the last unstarted real milestone.
+- Optional: spec §7.2's daily scheduled production-cadence workflow — not implemented, marked optional in the spec, would also make the dashboard's trend view actually live.
+- Once the Looker Studio report is built and the dashboard PR is merged, all of spec §9's milestones are done except whatever stretch goals (spec §12) are worth picking up.
 
 ## Environment notes
 
