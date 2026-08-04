@@ -12,7 +12,7 @@ Repo: https://github.com/Vivianavvg/cold-supply-chain (owner: Vivianavvg)
 
 Feature branch → push → open PR on github.com → user merges via the web UI → pull `main` locally → delete the merged local branch → branch again for the next milestone. `gh` CLI is **not installed** on this machine, so PRs must be opened/merged manually on github.com; Claude can push branches and give the PR URL but cannot merge.
 
-`.github/workflows/ci.yml` is now a real, tested workflow (see "CI/CD" section below) — no longer the all-checks-fail placeholder. It needs two repo secrets added on github.com before it will actually pass on a PR (`GCP_SA_KEY`, `GCP_PROJECT`) — see that section for exact steps; until those are added, PRs will show a failing check (auth error, not a code problem).
+`.github/workflows/ci.yml` is now a real, working workflow (see "CI/CD" section below) — no longer the all-checks-fail placeholder. The two required repo secrets (`GCP_SA_KEY`, `GCP_PROJECT`) have been added on github.com.
 
 ## Status as of this handoff
 
@@ -24,10 +24,10 @@ Feature branch → push → open PR on github.com → user merges via the web UI
 | Silver intermediate models + 3 tests | `main` (was `feature/silver-models`) | Merged (PR #3) |
 | Gold star schema | `main` (was `feature/gold-models`) | Merged (PR #4) |
 | BigQuery sandbox + first real `dbt build` | `main` (was `feature/bigquery-setup`) | Merged (PR #5) |
-| CI/CD (real) | `feature/ci-cd` | **Done, verified locally — PR open, needs repo secrets added before merge** |
+| CI/CD (real) | `main` (was `feature/ci-cd`) | Merged (PR #6) — repo secrets added, PR merged 2026-08-04 |
 | Dashboard | — | Not started |
 
-**Next action when resuming:** add the two GitHub repo secrets (see "CI/CD" section below), then merge the `feature/ci-cd` PR, pull `main`, delete the local branch, then start the dashboard (spec §8) — the last open milestone.
+**Next action when resuming:** the actual GitHub Actions run on the merged PR was never watched end-to-end this session (verification was local `dbt build --target ci` runs, not a live Actions log) — worth checking the Actions tab on the next PR to confirm the real runner behaves the same way. After that: start the dashboard (spec §8), the last open milestone.
 
 **Note on this handoff doc's history:** this file's original commit (`fc1ba2f`) was made *after* PR #3 had already been merged, so it never made it into `main` via that PR — it sat orphaned on `feature/silver-models` until cherry-picked directly onto `main` in a later session. If a future PR merge seems to "lose" doc-only commits made close to merge time, check for the same race — commits pushed after a PR merges don't ride along.
 
@@ -88,7 +88,7 @@ Goal: get `dbt build` running for real for the first time (spec §2.1: Google Cl
    - **Deprecation notice** (not an error, build still passed): dbt 1.12 flags the `accepted_values`/other generic test configs in `_bronze__models.yml` that pass args top-level (e.g. `tests: [accepted_values: {values: [...]}]`) instead of nested under an `arguments:` key — `MissingArgumentsPropertyInGenericTestDeprecation`, 15 occurrences. Cosmetic today; will need nesting under `arguments:` before whatever future dbt version turns this into a hard error. Not fixed in this session — small, unrelated to the sandbox milestone, left as a follow-up.
 5. Committed `macros/generate_schema_name.sql` + `data_generator/load_to_bigquery.py` on `feature/bigquery-setup`, pushed, PR opened.
 
-## CI/CD (spec §7, done 2026-08-04, PR open on `feature/ci-cd`)
+## CI/CD (spec §7, done and merged 2026-08-04, was `feature/ci-cd`, PR #6)
 
 Implements spec §7.1 (PR-triggered `dbt build`, required). §7.2 (optional daily scheduled production run) is **not implemented** — deliberately deferred, spec marks it optional, and it's a reasonable next increment on top of this.
 
@@ -100,15 +100,17 @@ Implements spec §7.1 (PR-triggered `dbt build`, required). §7.2 (optional dail
 - **Verified for real, not just reasoned through**: ran the exact `dbt build --target ci` command locally against `cold-chain-supply` with `DBT_DATASET=ci_pr_test` before ever pushing — all 86 nodes passed, everything landed in `ci_pr_test_bronze/silver/gold`, confirmed via `dbt show --target dev` that the real `gold` dataset was untouched, then ran the same cleanup snippet the workflow uses to delete the 3 test datasets. The GitHub Actions run itself (real `ubuntu-latest` runner, real secrets) is still unverified — first PR push will be the actual first real-CI confirmation.
 - **`requirements.txt`** — bumped `dbt-bigquery~=1.8` → `~=1.12` (matches what's actually installed/tested) and added `google-cloud-bigquery~=3.42` explicitly (previously only installed ad hoc outside `requirements.txt`, needed directly by `data_generator/load_to_bigquery.py` and now by the CI cleanup step too). Dry-run `pip install` confirmed no dependency conflicts.
 
-**Required before merge — 2 GitHub repo secrets, added manually on github.com (Settings → Secrets and variables → Actions → New repository secret; no `gh` CLI on this machine, so this can't be scripted):**
+**Required before merge — 2 GitHub repo secrets, added manually on github.com (Settings → Secrets and variables → Actions → New repository secret; no `gh` CLI on this machine, so this couldn't be scripted):**
 1. `GCP_SA_KEY` — full contents of the service account JSON keyfile (the same one at `~/.dbt/keys/<gcp-project-id>-sa.json` used for local dev). Paste the whole file content as the secret value.
 2. `GCP_PROJECT` — the GCP project ID (see local `~/.dbt/profiles.yml`, not recorded here per the redaction decision below).
+
+Both were added by the user on github.com and the PR was merged 2026-08-04. **Not yet confirmed:** the actual GitHub Actions run on a real `ubuntu-latest` runner with real secrets — everything above was verified via local `dbt build --target ci` runs before pushing, not by watching a live Actions log. Check the Actions tab on the next PR against `main` to confirm the real workflow run succeeds the same way the local simulation did.
 
 The existing `dbt-coldchain` service account (BigQuery Data Editor + Job User, already used for local dev) is reused for CI rather than creating a second one — sufficient permissions (dataset create/delete + query) already confirmed working via the local `raw` dataset load.
 
 ## Still open
 
-- Add the 2 GitHub repo secrets above, then merge the `feature/ci-cd` PR.
+- Confirm the real GitHub Actions run on the next PR actually passes (see note above — this milestone was verified locally, not via a live Actions log yet).
 - Minor: nest the `accepted_values` test args under `arguments:` in `_bronze__models.yml` to clear a dbt 1.12 deprecation warning (see BigQuery sandbox section above) — small, no rush.
 - Optional: spec §7.2's daily scheduled production-cadence workflow (generate new raw data, run full pipeline against prod, post a summary) — not implemented, marked optional in the spec.
 - The dashboard (spec §8) is the last unstarted real milestone.
